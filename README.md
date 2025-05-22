@@ -24,6 +24,19 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 本專案包含一個用於與 Yotpo Loyalty & Referrals API 互動的 TypeScript 客戶端 (`src/app/api/yotpo/client.ts`)。
 
+### 環境變數設定
+
+為了安全地管理您的憑證，`guid` 和 `apiKey` 應透過環境變數設定。在您的專案根目錄建立一個 `.env.local` 檔案，並加入以下內容：
+
+```
+NEXT_PUBLIC_YOTPO_GUID=您的Yotpo GUID
+NEXT_PUBLIC_YOTPO_API_KEY=您的Yotpo API Key
+```
+
+客戶端將自動讀取這些變數。請記得在新增或修改 `.env.local` 檔案後重新啟動您的 Next.js 開發伺服器。
+
+您也可以參考 `.env.example` 檔案以獲取環境變數的模板。
+
 ### 功能
 
 此客戶端支援以下 Yotpo Loyalty API 功能類別：
@@ -41,16 +54,25 @@ This project uses [`next/font`](https://nextjs.org/docs/app/building-your-applic
 
 ### 基本用法
 
-首先，您需要使用您的 `guid` 和 `apiKey` 初始化客戶端：
+客戶端會自動從環境變數 (`NEXT_PUBLIC_YOTPO_GUID` 和 `NEXT_PUBLIC_YOTPO_API_KEY`) 讀取 `guid` 和 `apiKey`。
 
 ```typescript
 import { YotpoLoyaltyClient } from './src/app/api/yotpo/client';
 
-const client = new YotpoLoyaltyClient('YOUR_GUID', 'YOUR_API_KEY');
+// 假設環境變數已設定
+const client = new YotpoLoyaltyClient(
+  process.env.NEXT_PUBLIC_YOTPO_GUID!, 
+  process.env.NEXT_PUBLIC_YOTPO_API_KEY!
+);
 
 // 範例：查詢有效的行銷活動
 async function fetchCampaigns() {
   try {
+    // 檢查 GUID 和 API Key 是否成功載入
+    if (!process.env.NEXT_PUBLIC_YOTPO_GUID || !process.env.NEXT_PUBLIC_YOTPO_API_KEY) {
+      console.error('GUID 或 API Key 未在環境變數中設定。');
+      return;
+    }
     const campaigns = await client.getActiveCampaigns();
     console.log('有效的行銷活動:', campaigns);
   } catch (error) {

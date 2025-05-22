@@ -12,30 +12,37 @@ interface ApiRequestDetails {
 }
 
 export default function YotpoTesterPage() {
-  const [guid, setGuid] = useState<string>("");
-  const [apiKey, setApiKey] = useState<string>("");
+  const yotpoGuid = process.env.NEXT_PUBLIC_YOTPO_GUID;
+  const yotpoApiKey = process.env.NEXT_PUBLIC_YOTPO_API_KEY;
+
   const [selectedEndpoint, setSelectedEndpoint] = useState<Endpoint>("getActiveCampaigns");
   const [payloadInput, setPayloadInput] = useState<string>("");
   const [apiRequest, setApiRequest] = useState<ApiRequestDetails | null>(null);
   const [apiResponse, setApiResponse] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const areEnvVarsSet = yotpoGuid && yotpoApiKey;
   let yotpoClient: YotpoLoyaltyClient | null = null;
+
+  if (areEnvVarsSet) {
+    try {
+      yotpoClient = new YotpoLoyaltyClient(yotpoGuid, yotpoApiKey);
+    } catch (e: any) {
+      // This error will be caught and displayed when trying to run a request if client is null
+      console.error("Error instantiating Yotpo client with ENV vars:", e);
+    }
+  }
 
   const handleRunRequest = async () => {
     setError(null);
     setApiResponse(null);
     setApiRequest(null);
 
-    if (!guid || !apiKey) {
-      setError("GUID and API Key are required.");
-      return;
-    }
-
-    try {
-      yotpoClient = new YotpoLoyaltyClient(guid, apiKey);
-    } catch (e: any) {
-      setError(`Error instantiating client: ${e.message}`);
+    if (!areEnvVarsSet || !yotpoClient) {
+      setError(
+        "Yotpo GUID and API Key are not configured in environment variables. " +
+        "Please create a .env.local file with NEXT_PUBLIC_YOTPO_GUID and NEXT_PUBLIC_YOTPO_API_KEY, then restart the server."
+      );
       return;
     }
 
@@ -86,7 +93,7 @@ export default function YotpoTesterPage() {
         case "getActiveCampaigns":
           requestDetails.method = "GET";
           requestDetails.endpointPath = "/campaigns";
-          response = await yotpoClient.getActiveCampaigns(parsedPayload as GetActiveCampaignsParams);
+          response = await yotpoClient!.getActiveCampaigns(parsedPayload as GetActiveCampaignsParams);
           break;
         case "createOrUpdateCustomer":
           requestDetails.method = "POST";
@@ -95,7 +102,7 @@ export default function YotpoTesterPage() {
             setError("Payload for createOrUpdateCustomer must be a JSON object with an 'email' field.");
             return;
           }
-          response = await yotpoClient.createOrUpdateCustomer(parsedPayload as CreateUpdateCustomerPayload);
+          response = await yotpoClient!.createOrUpdateCustomer(parsedPayload as CreateUpdateCustomerPayload);
           break;
         case "fetchCustomerDetails":
           requestDetails.method = "GET";
@@ -104,7 +111,7 @@ export default function YotpoTesterPage() {
             setError("For fetchCustomerDetails, provide email (e.g., test@example.com) or JSON `{\"customer_email\":\"test@example.com\"}` or `{\"customer_external_id\":\"id123\"}` in payload input.");
             return;
           }
-          response = await yotpoClient.fetchCustomerDetails(parsedPayload as FetchCustomerDetailsParams);
+          response = await yotpoClient!.fetchCustomerDetails(parsedPayload as FetchCustomerDetailsParams);
           break;
         default:
           setError("Invalid endpoint selected.");
@@ -126,30 +133,24 @@ export default function YotpoTesterPage() {
     <div style={{ padding: "20px", fontFamily: "sans-serif" }}>
       <h1>Yotpo Loyalty Client Playground</h1>
 
-      <section style={{ marginBottom: "20px", border: "1px solid #ccc", padding: "10px" }}>
-        <h2>Authentication</h2>
-        <div>
-          <label htmlFor="guid" style={{ marginRight: "10px" }}>GUID:</label>
-          <input
-            type="text"
-            id="guid"
-            value={guid}
-            onChange={(e) => setGuid(e.target.value)}
-            placeholder="Enter Yotpo GUID"
-            style={{ width: "300px", marginBottom: "10px" }}
-          />
-        </div>
-        <div>
-          <label htmlFor="apiKey" style={{ marginRight: "10px" }}>API Key:</label>
-          <input
-            type="password"
-            id="apiKey"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            placeholder="Enter Yotpo API Key"
-            style={{ width: "300px" }}
-          />
-        </div>
+      <section style={{ marginBottom: "20px", border: "1px solid #ccc", padding: "10px", backgroundColor: areEnvVarsSet ? "#e6ffed" : "#ffebee" }}>
+        <h2>Authentication Status</h2>
+        {areEnvVarsSet ? (
+          <p style={{ color: "green" }}>
+            Using GUID: {yotpoGuid!.substring(0, 4)}... and API Key: {yotpoApiKey!.substring(0, 4)}... from .env.local
+          </p>
+        ) : (
+          <div style={{ color: "red" }}>
+            <p><strong>Yotpo GUID and API Key are not configured.</strong></p>
+            <p>Please create a <code>.env.local</code> file in the project root with the following content:</p>
+            <pre style={{ backgroundColor: "#f0f0f0", padding: "10px", borderRadius: "4px", marginTop: "10px" }}>
+              {`NEXT_PUBLIC_YOTPO_GUID=your_actual_guid\nNEXT_PUBLIC_YOTPO_API_KEY=your_actual_api_key`}
+            </pre>
+            <p style={{ marginTop: "10px" }}>
+              After creating or updating the <code>.env.local</code> file, you must restart your Next.js development server for the changes to take effect.
+            </p>
+          </div>
+        )}
       </section>
 
       <section style={{ marginBottom: "20px", border: "1px solid #ccc", padding: "10px" }}>
@@ -193,7 +194,15 @@ export default function YotpoTesterPage() {
 
       <button
         onClick={handleRunRequest}
-        style={{ padding: "10px 15px", backgroundColor: "#007bff", color: "white", border: "none", borderRadius: "4px", cursor: "pointer" }}
+        disabled={!areEnvVarsSet}
+        style={{ 
+          padding: "10px 15px", 
+          backgroundColor: areEnvVarsSet ? "#007bff" : "#cccccc", 
+          color: "white", 
+          border: "none", 
+          borderRadius: "4px", 
+          cursor: areEnvVarsSet ? "pointer" : "not-allowed" 
+        }}
       >
         Run Request
       </button>
